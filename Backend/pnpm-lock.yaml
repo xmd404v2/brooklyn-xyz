@@ -14,6 +14,9 @@ importers:
       dotenv:
         specifier: ^16.5.0
         version: 16.5.0
+      pinata:
+        specifier: ^2.4.8
+        version: 2.4.8
       viem:
         specifier: ^2.31.4
         version: 2.31.4(typescript@5.8.3)
@@ -265,6 +268,18 @@ packages:
       typescript:
         optional: true
 
+  pinata@2.4.8:
+    resolution: {integrity: sha512-5z2d9pe6q0fO+8GuH5ofy5uxZQtknFUD2K1C1BQ4sTrUKLmW3h0bRCSKWu9d8EQEjDp+2s27s4BXG83lBfW4Ig==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      react: '>=16.8.0'
+      react-dom: '>=16.8.0'
+    peerDependenciesMeta:
+      react:
+        optional: true
+      react-dom:
+        optional: true
+
   resolve-pkg-maps@1.0.0:
     resolution: {integrity: sha512-seS2Tj26TBVOC2NIc2rOe2y2ZO7efxITtLZcGSOnHHNOQ7CkiUBfw0Iw2ck6xkIhPwLhKNLS8BO+hEpngQlqzw==}
 
@@ -477,6 +492,8 @@ snapshots:
       typescript: 5.8.3
     transitivePeerDependencies:
       - zod
+
+  pinata@2.4.8: {}
 
   resolve-pkg-maps@1.0.0: {}
 
