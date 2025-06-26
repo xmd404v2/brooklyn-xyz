@@ -2,10 +2,17 @@ import "dotenv/config";
 import { setApiKey, createCoin, DeployCurrency } from "@zoralabs/coins-sdk";
 import { Hex, createWalletClient, createPublicClient, http, Address } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { base } from "viem/chains";
+import { baseSepolia } from "viem/chains";
 import { PinataSDK } from "pinata";
+import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_ANON_KEY!
+);
 
 const pinata = new PinataSDK({
   pinataJwt: process.env.PINATA_JWT,
@@ -33,17 +40,60 @@ async function uploadImageToIPFS(filePath: string) {
   }
 }
 
+async function getNextPendingNFT() {
+  const { data, error } = await supabase
+    .from('nft_queue')
+    .select('*')
+    .eq('status', 'pending')
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      // No rows returned
+      console.log('📭 No pending NFTs in queue');
+      return null;
+    }
+    throw error;
+  }
+
+  return data;
+}
+
+async function updateNFTStatus(id: number, status: string, updates: any = {}) {
+  const { error } = await supabase
+    .from('nft_queue')
+    .update({ status, ...updates })
+    .eq('id', id);
+
+  if (error) throw error;
+}
+
 async function main() {
   try {
-    // Upload image first and wait for it to complete
-    const imagePath = path.join(__dirname, 'images/1.png');
-    const ipfsHash = await uploadImageToIPFS(imagePath);
+    // Get the next pending NFT from database
+    const nftData = await getNextPendingNFT();
     
+    if (!nftData) {
+      console.log('No pending NFTs to process');
+      return;
+    }
+
+    console.log(`Processing: ${nftData.name}`);
+    
+    // Mark as processing
+    await updateNFTStatus(nftData.id, 'processing');
+
+    // Upload image first and wait for it to complete
+    // const imagePath = path.resolve(nftData.image_path);
+    // const ipfsHash = await uploadImageToIPFS(imagePath);
+    const ipfsHash = nftData.ipfsHash;
     // Create metadata object with the IPFS hash
     const metadata = {
-      name: "vr",
-      description: "3d vr headset",
-      image: `ipfs://${ipfsHash}`, // Use proper IPFS URI format
+      name: nftData.name,
+      description: nftData.description,
+      image: `ipfs://${ipfsHash}`,
       properties: {
         category: "social"
       }
@@ -64,22 +114,22 @@ async function main() {
     console.log(account);
     
     const publicClient = createPublicClient({
-      chain: base,
-      transport: http("https://base-mainnet.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
+      chain: baseSepolia,
+      transport: http("https://base-sepolia.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
     });
     
     const walletClient = createWalletClient({
       account,
-      chain: base,
-      transport: http("https://base-mainnet.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
+      chain: baseSepolia,
+      transport: http("https://base-sepolia.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
     });
     
     const coinParams = {
-      name: "Brooklyn",
-      symbol: "BRKLN",
+      name: nftData.name,
+      symbol: nftData.symbol,
       uri: `ipfs://${metadataCid}`, // Use proper IPFS URI format
-      payoutRecipient: "0xC27d4CcC62E64791c5B321C38E2aF647F091ddf5" as Address,
-      chainId: base.id,
+      payoutRecipient: nftData.payout_recipient as Address,
+      chainId: baseSepolia.id,
       currency: DeployCurrency.ETH,
     };
     
@@ -91,10 +141,32 @@ async function main() {
     console.log("✅ Transaction hash:", result.hash);
     console.log("✅ Coin address:", result.address);
     console.log("📦 Deployment details:", result.deployment);
-    
+
+    // Mark as completed and save transaction details
+    await updateNFTStatus(nftData.id, 'completed', {
+      transaction_hash: result.hash,
+      coin_address: result.address,
+      ipfs_image_cid: ipfsHash,
+      ipfs_metadata_cid: metadataCid,
+      processed_at: new Date().toISOString()
+    });
+
     return result;
   } catch (error) {
     console.error("❌ Error:", error);
+    
+    // If we have an NFT being processed, mark it as failed
+    try {
+      const nftData = await getNextPendingNFT();
+      if (nftData) {
+        await updateNFTStatus(nftData.id, 'failed', {
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    } catch (dbError) {
+      console.error("❌ Database error:", dbError);
+    }
+    
     throw error;
   }
 }
