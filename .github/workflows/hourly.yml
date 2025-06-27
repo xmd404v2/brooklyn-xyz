@@ -28,3 +28,6 @@ jobs:
           GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
           ZORA_KEY: ${{ secrets.ZORA_KEY }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          WEB_HOOK: ${{ secrets.WEB_HOOK }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY}}
