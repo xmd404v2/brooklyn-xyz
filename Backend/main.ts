@@ -19,6 +19,9 @@ const pinata = new PinataSDK({
   pinataGateway: process.env.GATEWAY_URL
 });
 
+let id = null;
+let name = null;
+
 // Discord webhook function
 async function sendDiscordNotification(message: string, isError: boolean = false) {
   try {
@@ -115,6 +118,8 @@ async function main() {
   try {
     // Get the next pending NFT from database
     const nftData = await getNextPendingNFT();
+    let id = nftData.id;
+    let name = nftData.name;
     
     if (!nftData) {
       console.log('No pending NFTs to process');
@@ -202,22 +207,18 @@ async function main() {
   } catch (error) {
     console.error("❌ Error:", error);
     
-    // If we have an NFT being processed, mark it as failed
-    let failedNftName = 'Unknown';
+
     try {
-      const nftData = await getNextPendingNFT();
-      if (nftData) {
-        failedNftName = nftData.name;
-        await updateNFTStatus(nftData.id, 'failed', {
-          error_message: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+
+      await updateNFTStatus(id, 'failed', {
+        error_message: error instanceof Error ? error.message : 'Unknown error'
+      });
     } catch (dbError) {
       console.error("❌ Database error:", dbError);
     }
     
     // Send error notification to Discord
-    const errorMessage = `**${failedNftName}** deployment failed!\n\n` +
+    const errorMessage = `**${name}** deployment failed!\n\n` +
       `❌ **Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n` +
       `⏰ **Time:** ${new Date().toLocaleString()}`;
     
