@@ -52,7 +52,7 @@ async function getNextPendingNFT() {
   if (error) {
     if (error.code === 'PGRST116') {
       // No rows returned
-      console.log('📭 No pending NFTs in queue');
+      console.log('📭 No pending NFTs in queue', error);
       return null;
     }
     throw error;
@@ -88,7 +88,7 @@ async function main() {
     // Upload image first and wait for it to complete
     // const imagePath = path.resolve(nftData.image_path);
     // const ipfsHash = await uploadImageToIPFS(imagePath);
-    const ipfsHash = nftData.ipfsHash;
+    const ipfsHash = nftData.nft_ipfshash;
     // Create metadata object with the IPFS hash
     const metadata = {
       name: nftData.name,
@@ -111,7 +111,6 @@ async function main() {
     
     const privateKey = `0x${process.env.PRIVATE_KEY!}`;
     const account = privateKeyToAccount(privateKey as Address);
-    console.log(account);
     
     const publicClient = createPublicClient({
       chain: baseSepolia,
@@ -126,9 +125,9 @@ async function main() {
     
     const coinParams = {
       name: nftData.name,
-      symbol: nftData.symbol,
+      symbol: 'BRKLYN',
       uri: `ipfs://${metadataCid}`, // Use proper IPFS URI format
-      payoutRecipient: nftData.payout_recipient as Address,
+      payoutRecipient: walletClient.account.address as Address,
       chainId: baseSepolia.id,
       currency: DeployCurrency.ETH,
     };
@@ -144,11 +143,9 @@ async function main() {
 
     // Mark as completed and save transaction details
     await updateNFTStatus(nftData.id, 'completed', {
-      transaction_hash: result.hash,
-      coin_address: result.address,
-      ipfs_image_cid: ipfsHash,
-      ipfs_metadata_cid: metadataCid,
-      processed_at: new Date().toISOString()
+      tx: result.hash,
+      coin: result.address,
+      posted_at: new Date().toISOString()
     });
 
     return result;
