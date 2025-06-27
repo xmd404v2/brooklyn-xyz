@@ -114,12 +114,70 @@ async function updateNFTStatus(id: number, status: string, updates: any = {}) {
   if (error) throw error;
 }
 
+async function deployNFT(nftData: any) {
+  const ipfsHash = nftData.nft_ipfshash;
+  
+  // Create metadata object with the IPFS hash
+  const metadata = {
+    name: nftData.name,
+    description: nftData.description,
+    image: `ipfs://${ipfsHash}`,
+    properties: {
+      category: "social"
+    }
+  };
+  
+  // Upload metadata to IPFS
+  const metadataUpload = await pinata.upload.public.json(metadata);
+  const metadataCid = metadataUpload.cid;
+  
+  console.log('✅ Metadata uploaded to IPFS:');
+  console.log('Metadata CID:', metadataCid);
+  
+  // Set up Zora SDK
+  setApiKey(process.env.ZORA_KEY!);
+  
+  const privateKey = `0x${process.env.PRIVATE_KEY!}`;
+  const account = privateKeyToAccount(privateKey as Address);
+  
+  const publicClient = createPublicClient({
+    chain: baseSepolia,
+    transport: http("https://base-sepolia.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
+  });
+  
+  const walletClient = createWalletClient({
+    account,
+    chain: baseSepolia,
+    transport: http("https://base-sepolia.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
+  });
+  
+  const coinParams = {
+    name: nftData.name,
+    symbol: 'BRKLYN',
+    uri: `ipfs://${metadataCid}`, // Use proper IPFS URI format
+    payoutRecipient: walletClient.account.address as Address,
+    chainId: baseSepolia.id,
+    currency: DeployCurrency.ETH,
+  };
+  
+  // Create the coin
+  const result = await createCoin(coinParams, walletClient, publicClient, {
+    gasMultiplier: 120,
+  });
+  
+  console.log("✅ Transaction hash:", result.hash);
+  console.log("✅ Coin address:", result.address);
+  console.log("📦 Deployment details:", result.deployment);
+
+  return result;
+}
+
 async function main() {
   try {
     // Get the next pending NFT from database
     const nftData = await getNextPendingNFT();
-    let id = nftData.id;
-    let name = nftData.name;
+    id = nftData?.id || null;
+    name = nftData?.name || null;
     
     if (!nftData) {
       console.log('No pending NFTs to process');
@@ -131,61 +189,32 @@ async function main() {
     // Mark as processing
     await updateNFTStatus(nftData.id, 'processing');
 
-    // Upload image first and wait for it to complete
-    // const imagePath = path.resolve(nftData.image_path);
-    // const ipfsHash = await uploadImageToIPFS(imagePath);
-    const ipfsHash = nftData.nft_ipfshash;
-    // Create metadata object with the IPFS hash
-    const metadata = {
-      name: nftData.name,
-      description: nftData.description,
-      image: `ipfs://${ipfsHash}`,
-      properties: {
-        category: "social"
+    let result;
+    let lastError;
+    const maxRetries = 3;
+    
+    // Retry deployment up to 3 times
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`🔄 Deployment attempt ${attempt}/${maxRetries}`);
+        result = await deployNFT(nftData);
+        break; // Success, exit retry loop
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ Attempt ${attempt} failed:`, error);
+        
+        if (attempt < maxRetries) {
+          const delay = attempt * 2000; // 2s, 4s delay between retries
+          console.log(`⏳ Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-    };
+    }
     
-    // Upload metadata to IPFS
-    const metadataUpload = await pinata.upload.public.json(metadata);
-    const metadataCid = metadataUpload.cid;
-    
-    console.log('✅ Metadata uploaded to IPFS:');
-    console.log('Metadata CID:', metadataCid);
-    
-    // Set up Zora SDK
-    setApiKey(process.env.ZORA_KEY!);
-    
-    const privateKey = `0x${process.env.PRIVATE_KEY!}`;
-    const account = privateKeyToAccount(privateKey as Address);
-    
-    const publicClient = createPublicClient({
-      chain: baseSepolia,
-      transport: http("https://base-sepolia.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
-    });
-    
-    const walletClient = createWalletClient({
-      account,
-      chain: baseSepolia,
-      transport: http("https://base-sepolia.g.alchemy.com/v2/oKxs-03sij-U_N0iOlrSsZFr29-IqbuF"),
-    });
-    
-    const coinParams = {
-      name: nftData.name,
-      symbol: 'BRKLYN',
-      uri: `ipfs://${metadataCid}`, // Use proper IPFS URI format
-      payoutRecipient: walletClient.account.address as Address,
-      chainId: baseSepolia.id,
-      currency: DeployCurrency.ETH,
-    };
-    
-    // Create the coin
-    const result = await createCoin(coinParams, walletClient, publicClient, {
-      gasMultiplier: 120,
-    });
-    
-    console.log("✅ Transaction hash:", result.hash);
-    console.log("✅ Coin address:", result.address);
-    console.log("📦 Deployment details:", result.deployment);
+    // If all retries failed, throw the last error
+    if (!result) {
+      throw lastError;
+    }
 
     // Mark as completed and save transaction details
     await updateNFTStatus(nftData.id, 'completed', {
@@ -199,7 +228,7 @@ async function main() {
       `🔗 **Transaction:** [${result.hash}](https://sepolia.basescan.org/tx/${result.hash})\n` +
       `🪙 **Coin Address:** \`${result.address}\`\n` +
       `📝 **Description:** ${nftData.description}\n` +
-      `🖼️ **Image:** [View on IPFS](https://gateway.pinata.cloud/ipfs/${ipfsHash})`;
+      `🖼️ **Image:** [View on IPFS](https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash})`;
     
     await sendDiscordNotification(successMessage, false);
 
@@ -207,9 +236,7 @@ async function main() {
   } catch (error) {
     console.error("❌ Error:", error);
     
-
     try {
-
       await updateNFTStatus(id, 'failed', {
         error_message: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -218,7 +245,7 @@ async function main() {
     }
     
     // Send error notification to Discord
-    const errorMessage = `**${name}** deployment failed!\n\n` +
+    const errorMessage = `**${name}** deployment failed after 3 attempts!\n\n` +
       `❌ **Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n` +
       `⏰ **Time:** ${new Date().toLocaleString()}`;
     
