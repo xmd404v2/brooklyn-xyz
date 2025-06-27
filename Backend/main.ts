@@ -19,6 +19,47 @@ const pinata = new PinataSDK({
   pinataGateway: process.env.GATEWAY_URL
 });
 
+// Discord webhook function
+async function sendDiscordNotification(message: string, isError: boolean = false) {
+  try {
+    const webhookUrl = process.env.WEB_HOOK;
+    if (!webhookUrl) {
+      console.log('⚠️ Discord webhook URL not configured');
+      return;
+    }
+
+    const embed = {
+      title: isError ? "❌ NFT Deployment Failed" : "✅ NFT Deployment Success",
+      description: message,
+      color: isError ? 0xFF0000 : 0x00FF00, // Red for error, Green for success
+      timestamp: new Date().toISOString(),
+      footer: {
+        text: "NFT Bot"
+      }
+    };
+
+    const payload = {
+      embeds: [embed]
+    };
+
+    const response = await fetch(webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload)
+    });
+
+    if (!response.ok) {
+      console.error('❌ Discord webhook failed:', response.status, response.statusText);
+    } else {
+      console.log('✅ Discord notification sent');
+    }
+  } catch (error) {
+    console.error('❌ Discord notification error:', error);
+  }
+}
+
 async function uploadImageToIPFS(filePath: string) {
   try {
     const fileBuffer = fs.readFileSync(filePath);
@@ -148,14 +189,25 @@ async function main() {
       posted_at: new Date().toISOString()
     });
 
+    // Send success notification to Discord
+    const successMessage = `**${nftData.name}** deployed successfully!\n\n` +
+      `🔗 **Transaction:** [${result.hash}](https://sepolia.basescan.org/tx/${result.hash})\n` +
+      `🪙 **Coin Address:** \`${result.address}\`\n` +
+      `📝 **Description:** ${nftData.description}\n` +
+      `🖼️ **Image:** [View on IPFS](https://gateway.pinata.cloud/ipfs/${ipfsHash})`;
+    
+    await sendDiscordNotification(successMessage, false);
+
     return result;
   } catch (error) {
     console.error("❌ Error:", error);
     
     // If we have an NFT being processed, mark it as failed
+    let failedNftName = 'Unknown';
     try {
       const nftData = await getNextPendingNFT();
       if (nftData) {
+        failedNftName = nftData.name;
         await updateNFTStatus(nftData.id, 'failed', {
           error_message: error instanceof Error ? error.message : 'Unknown error'
         });
@@ -163,6 +215,13 @@ async function main() {
     } catch (dbError) {
       console.error("❌ Database error:", dbError);
     }
+    
+    // Send error notification to Discord
+    const errorMessage = `**${failedNftName}** deployment failed!\n\n` +
+      `❌ **Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n` +
+      `⏰ **Time:** ${new Date().toLocaleString()}`;
+    
+    await sendDiscordNotification(errorMessage, true);
     
     throw error;
   }
