@@ -8,6 +8,8 @@
 		"@zoralabs/coins-sdk": "^0.2.4",
 		"dotenv": "^16.5.0",
 		"pinata": "^2.4.8",
+		"sharp": "^0.34.2",
+		"uuid": "^11.1.0",
 		"viem": "^2.31.4"
 	},
 	"devDependencies": {
