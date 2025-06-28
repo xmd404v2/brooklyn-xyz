@@ -7,6 +7,9 @@ import { PinataSDK } from "pinata";
 import { createClient } from '@supabase/supabase-js';
 import fs from 'fs';
 import path from 'path';
+import generateImage from "./mint";
+import { v4 as uuidv4 } from 'uuid';
+import sharp from 'sharp';
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -21,6 +24,7 @@ const pinata = new PinataSDK({
 
 let id = null;
 let name = null;
+let prompt = "Anime-style cyberpunk female character with dark brown skin, sharp teal eyes, and a confident, determined expression. She wears a high-tech red and black armored exosuit with glowing blue and orange lines, featuring sci-fi straps, connectors, and a compact backpack unit. Large futuristic orange headphones with neon lights cover her ears, with visible cables hanging down. Her hair is tied into a high ponytail, styled in a sleek anime fashion. Her face has small cybernetic implants glowing faintly. The environment is a vibrant, stylized cyberpunk city at night — filled with exaggerated teal and orange neon signs, floating holograms, glowing advertisements, and tall angular buildings in the distance. The background is slightly blurred with soft anime lighting effects and bokeh-style lights. The entire scene is illustrated in a bold, cel-shaded anime/cartoon art style, not realistic — with clean outlines, vivid colors, and dramatic lighting contrast.";
 
 // Discord webhook function
 async function sendDiscordNotification(message: string, isError: boolean = false) {
@@ -63,26 +67,72 @@ async function sendDiscordNotification(message: string, isError: boolean = false
   }
 }
 
-async function uploadImageToIPFS(filePath: string) {
+
+async function uploadImageToIPFS(filePathOrUrl: string) {
+  console.log("linkkk: ", filePathOrUrl);
   try {
-    const fileBuffer = fs.readFileSync(filePath);
-    const fileName = path.basename(filePath);
-    
-    // Create a File-like object that's compatible with Pinata
-    const file = new File([fileBuffer], fileName, { 
-      type: "image/png" // Use appropriate MIME type for your image
+    let fileBuffer: Buffer;
+    let fileName: string;
+    let mimeType = "image/png";
+
+    // Check if input is a URL
+    if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
+      const response = await fetch(filePathOrUrl);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
+      }
+
+      const arrayBuffer = await response.arrayBuffer();
+      fileBuffer = Buffer.from(arrayBuffer);
+
+      // Extract filename
+      const urlPath = new URL(filePathOrUrl).pathname;
+      fileName = path.basename(urlPath) || 'image.png';
+
+      const contentType = response.headers.get('content-type') || '';
+
+      // Convert WebP to JPEG
+      if (contentType.includes('webp') || fileName.endsWith('.webp')) {
+        fileBuffer = await sharp(fileBuffer).jpeg().toBuffer();
+        fileName = fileName.replace(/\.webp$/, '') + '.jpg';
+        mimeType = 'image/jpeg';
+      } else if (contentType.includes('jpeg')) {
+        mimeType = 'image/jpeg';
+      } else if (contentType.includes('png')) {
+        mimeType = 'image/png';
+      } else if (contentType.includes('gif')) {
+        mimeType = 'image/gif';
+      }
+    } else {
+      // Local file
+      fileBuffer = fs.readFileSync(filePathOrUrl);
+      fileName = path.basename(filePathOrUrl);
+      if (fileName.endsWith('.webp')) {
+        fileBuffer = await sharp(fileBuffer).jpeg().toBuffer();
+        fileName = fileName.replace(/\.webp$/, '') + '.jpg';
+        mimeType = 'image/jpeg';
+      }
+    }
+
+    // Create file object
+    const file = new File([fileBuffer], fileName, {
+      type: mimeType
     });
-    
+
     const upload = await pinata.upload.public.file(file);
+
     console.log('✅ Image uploaded to IPFS:');
     console.log('CID:', upload.cid);
     console.log('Gateway:', `https://gateway.pinata.cloud/ipfs/${upload.cid}`);
+
     return upload.cid;
   } catch (error) {
     console.error('❌ Upload failed:', error);
     throw error;
   }
 }
+
 
 async function getNextPendingNFT() {
   const { data, error } = await supabase
@@ -97,7 +147,14 @@ async function getNextPendingNFT() {
     if (error.code === 'PGRST116') {
       // No rows returned
       console.log('📭 No pending NFTs in queue', error);
-      return null;
+      const nft_url = await generateImage(prompt);
+      const ipfs = await uploadImageToIPFS(nft_url);
+      return {
+        name: "Brooklyn", 
+        description: "Brooklyn replicate.",
+        nft_ipfshash: ipfs
+      }
+      // return null;
     }
     throw error;
   }
@@ -108,11 +165,11 @@ async function getNextPendingNFT() {
 async function updateNFTStatus(id: number, status: string, updates: any = {}) {
   const { error } = await supabase
     .from('nft_queue')
-    .update({ status, ...updates })
-    .eq('id', id);
+    .upsert({ id, status, ...updates }, { onConflict: ['id'] });
 
   if (error) throw error;
 }
+
 
 async function deployNFT(nftData: any) {
   const ipfsHash = nftData.nft_ipfshash;
@@ -176,7 +233,7 @@ async function main() {
   try {
     // Get the next pending NFT from database
     const nftData = await getNextPendingNFT();
-    id = nftData?.id || null;
+    id = nftData?.id || uuidv4();
     name = nftData?.name || null;
     
     if (!nftData) {
@@ -187,7 +244,7 @@ async function main() {
     console.log(`Processing: ${nftData.name}`);
     
     // Mark as processing
-    await updateNFTStatus(nftData.id, 'processing');
+    await updateNFTStatus(nftData.id, 'processing', nftData);
 
     let result;
     let lastError;
@@ -220,7 +277,8 @@ async function main() {
     await updateNFTStatus(nftData.id, 'completed', {
       tx: result.hash,
       coin: result.address,
-      posted_at: new Date().toISOString()
+      posted_at: new Date().toISOString(),
+      ...nftData
     });
 
     // Send success notification to Discord
@@ -249,7 +307,7 @@ async function main() {
       `❌ **Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n` +
       `⏰ **Time:** ${new Date().toLocaleString()}`;
     
-    await sendDiscordNotification(errorMessage, true);
+    // await sendDiscordNotification(errorMessage, true);
     
     throw error;
   }
