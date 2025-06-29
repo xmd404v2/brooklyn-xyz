@@ -6,7 +6,8 @@
 	"dependencies": {
 		"@supabase/supabase-js": "^2.50.2",
 		"@zoralabs/coins-sdk": "^0.2.4",
-		"dotenv": "^16.5.0",
+		"config": "^4.0.0",
+		"dotenv": "^16.6.1",
 		"pinata": "^2.4.8",
 		"sharp": "^0.34.2",
 		"uuid": "^11.1.0",
