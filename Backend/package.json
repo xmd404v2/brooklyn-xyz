@@ -4,6 +4,7 @@
 	"description": "Autonomous AI Artist Character that lives onchain with a goal to raise $1000 in 90days",
 	"main": "main.ts",
 	"dependencies": {
+		"@fal-ai/client": "^1.5.0",
 		"@supabase/supabase-js": "^2.50.2",
 		"@zoralabs/coins-sdk": "^0.2.4",
 		"config": "^4.0.0",

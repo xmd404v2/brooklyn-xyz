@@ -1,4 +1,6 @@
 import dotenv from 'dotenv';
+import { fal } from '@fal-ai/client';
+
 dotenv.config();
 
 const requiredEnvVars = ['FAL_API_KEY'];
@@ -9,10 +11,13 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
+// Configure fal.ai client with API key
+fal.config({
+  credentials: process.env.FAL_API_KEY,
+});
+
 interface FalResponse {
-  request_id: string;
-  status: string;
-  images?: { url: string }[];
+  images?: { url: string; content_type: string }[];
   error?: { message: string };
 }
 
@@ -23,64 +28,32 @@ async function generateImage(prompt: string): Promise<string> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Image generation attempt ${attempt}/${maxRetries}`);
-      const response = await fetch('https://queue.fal.run/fal-ai/flux.1', {
-        method: 'POST',
-        headers: {
-          Authorization: `Key ${process.env.FAL_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const result = await fal.queue.submit('fal-ai/flux.1-dev', {
+        input: {
           prompt: `A vibrant, detailed scene: ${prompt}`,
           image_size: 'square_hd',
           num_inference_steps: 28,
-        }),
+          enable_safety_checker: true,
+          output_format: 'jpeg',
+        },
+        logs: true,
+        onQueueUpdate: (update) => {
+          if (update.status === 'IN_PROGRESS') {
+            console.log('Progress:', update.logs?.map((log) => log.message));
+          }
+        },
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const data: FalResponse = result as FalResponse;
+      console.log('fal.ai Request ID:', result.requestId);
 
-      const data: FalResponse = await response.json();
-      console.log('fal.ai Request ID:', data.request_id);
-
-      // Check if images are available immediately
-      if (data.status === 'completed' && data.images && data.images.length > 0) {
+      if (data.images && data.images.length > 0) {
         const imageUrl = data.images[0].url;
         console.log('Image URL:', imageUrl);
         return imageUrl;
       }
 
-      // Poll for completion
-      const requestId = data.request_id;
-      let imageUrl: string | undefined;
-
-      for (let i = 0; i < 30; i++) {
-        const statusResponse = await fetch(`https://queue.fal.run/requests/${requestId}`, {
-          headers: { Authorization: `Key ${process.env.FAL_API_KEY}` },
-        });
-
-        if (!statusResponse.ok) {
-          throw new Error(`HTTP error! status: ${statusResponse.status}`);
-        }
-
-        const status: FalResponse = await statusResponse.json();
-        console.log('Status:', status);
-
-        if (status.status === 'completed' && status.images && status.images.length > 0) {
-          imageUrl = status.images[0].url;
-          break;
-        } else if (status.status === 'failed' || status.error) {
-          throw new Error(status.error?.message || 'Image generation failed');
-        }
-        await new Promise((resolve) => setTimeout(resolve, 1000));
-      }
-
-      if (!imageUrl) {
-        throw new Error('Image generation timed out');
-      }
-
-      console.log('Image URL:', imageUrl);
-      return imageUrl;
+      throw new Error('No images returned');
     } catch (error) {
       lastError = error as Error;
       console.error(`Attempt ${attempt} failed:`, error);
