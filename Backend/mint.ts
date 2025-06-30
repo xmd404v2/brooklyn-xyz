@@ -28,27 +28,19 @@ async function generateImage(prompt: string): Promise<string> {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Image generation attempt ${attempt}/${maxRetries}`);
-      const result = await fal.queue.submit('fal-ai/flux.1-dev', {
+      const result = await fal.run('fal-ai/flux/dev', {
         input: {
           prompt: `A vibrant, detailed scene: ${prompt}`,
           image_size: 'square_hd',
-          num_inference_steps: 28,
-          enable_safety_checker: true,
-          output_format: 'jpeg',
-        },
-        logs: true,
-        onQueueUpdate: (update) => {
-          if (update.status === 'IN_PROGRESS') {
-            console.log('Progress:', update.logs?.map((log) => log.message));
-          }
-        },
+          // num_inference_steps: 28,
+          // enable_safety_checker: true,
+        }
       });
 
-      const data: FalResponse = result as FalResponse;
-      console.log('fal.ai Request ID:', result.requestId);
+      console.log('fal.ai Request ID:', result.requestId, result.data.images);
 
-      if (data.images && data.images.length > 0) {
-        const imageUrl = data.images[0].url;
+      if (result.data.images) {
+        const imageUrl = result.data.images[0].url;
         console.log('Image URL:', imageUrl);
         return imageUrl;
       }
