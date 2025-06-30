@@ -1,7 +1,9 @@
 import dotenv from 'dotenv';
+import { fal } from '@fal-ai/client';
+
 dotenv.config();
 
-const requiredEnvVars = ['REPLICATE_API_KEY'];
+const requiredEnvVars = ['FAL_API_KEY'];
 for (const envVar of requiredEnvVars) {
   if (!process.env[envVar]) {
     console.error(`Missing environment variable: ${envVar}`);
@@ -9,63 +11,53 @@ for (const envVar of requiredEnvVars) {
   }
 }
 
-interface ReplicateResponse {
-  id: string;
-  status: string;
-  output?: string[];
+// Configure fal.ai client with API key
+fal.config({
+  credentials: process.env.FAL_API_KEY,
+});
+
+interface FalResponse {
+  images?: { url: string; content_type: string }[];
+  error?: { message: string };
 }
 
-export default async function generateImage(prompt: string): Promise<string> {
-  try {
-    const response = await fetch('https://api.replicate.com/v1/predictions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Token ${process.env.REPLICATE_API_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        version: 'black-forest-labs/flux-1.1-pro', // Replace with exact version ID if needed
-        input: { prompt: `A vibrant, detailed scene: ${prompt}` }
-      })
-    });
+async function generateImage(prompt: string): Promise<string> {
+  const maxRetries = 3;
+  let lastError: Error | null = null;
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data: ReplicateResponse = await response.json();
-
-    // Poll for completion
-    const predictionId = data.id;
-    console.log("PRdedd ID", predictionId);
-    let imageUrl: string | undefined;
-
-    for (let i = 0; i < 30; i++) { // Max 30s
-      const statusResponse = await fetch(
-        `https://api.replicate.com/v1/predictions/${predictionId}`,
-        {
-          headers: { Authorization: `Token ${process.env.REPLICATE_API_KEY}` }
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Image generation attempt ${attempt}/${maxRetries}`);
+      const result = await fal.run('fal-ai/flux/dev', {
+        input: {
+          prompt: `A vibrant, detailed scene: ${prompt}`,
+          image_size: 'square_hd',
+          // num_inference_steps: 28,
+          // enable_safety_checker: true,
         }
-      );
+      });
 
-      if (!statusResponse.ok) {
-        throw new Error(`HTTP error! status: ${statusResponse.status}`);
+      console.log('fal.ai Request ID:', result.requestId, result.data.images);
+
+      if (result.data.images) {
+        const imageUrl = result.data.images[0].url;
+        console.log('Image URL:', imageUrl);
+        return imageUrl;
       }
 
-      const status: ReplicateResponse = await statusResponse.json();
-      console.log(status);
-
-      if (status.status === 'succeeded') {
-        imageUrl = status.output;
-        break;
-      } else if (status.status === 'failed') {
-        throw new Error('Image generation failed');
+      throw new Error('No images returned');
+    } catch (error) {
+      lastError = error as Error;
+      console.error(`Attempt ${attempt} failed:`, error);
+      if (attempt < maxRetries) {
+        const delay = attempt * 2000;
+        console.log(`Waiting ${delay}ms before retry...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
       }
-      await new Promise(resolve => setTimeout(resolve, 1000));
     }
-    if (!imageUrl) throw new Error('Image generation timed out');
-    return imageUrl;
-  } catch (error) {
-    throw error;
   }
+
+  throw lastError || new Error('Image generation failed after retries');
 }
+
+export default generateImage;

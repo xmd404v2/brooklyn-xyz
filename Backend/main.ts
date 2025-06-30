@@ -283,6 +283,7 @@ async function main() {
 
     // Send success notification to Discord
     const successMessage = `**${nftData.name}** deployed successfully!\n\n` +
+      `🔗 **View On ZORA:** [${result.address}](https://testnet.zora.co/coin/bsep:${result.address})\n` +
       `🔗 **Transaction:** [${result.hash}](https://sepolia.basescan.org/tx/${result.hash})\n` +
       `🪙 **Coin Address:** \`${result.address}\`\n` +
       `📝 **Description:** ${nftData.description}\n` +
@@ -307,7 +308,7 @@ async function main() {
       `❌ **Error:** ${error instanceof Error ? error.message : 'Unknown error'}\n` +
       `⏰ **Time:** ${new Date().toLocaleString()}`;
     
-    // await sendDiscordNotification(errorMessage, true);
+    await sendDiscordNotification(errorMessage, true);
     
     throw error;
   }
