@@ -25,6 +25,7 @@ jobs:
         run: cd Backend && npx tsx main.ts
         env:
           PINATA_JWT: ${{ secrets.PINATA_JWT }}
+          FAL_API_KEY: ${{ secrets.FAL_API_KEY }}
           GATEWAY_URL: ${{ secrets.GATEWAY_URL }}
           ZORA_KEY: ${{ secrets.ZORA_KEY }}
           PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
