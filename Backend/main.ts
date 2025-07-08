@@ -141,34 +141,35 @@ async function getNextPendingNFT() {
     .order('created_at', { ascending: true })
     .limit(1)
     .single();
-  console.log(data);
-  // const { last_data, last_error } = await supabase
-  //   .from('story_queue')
-  //   .select('*')
-  //   .eq('status', 'completed')
-  //   .order('created_at', { ascending: false })
-  //   .limit(1)
-  //   .single();
-
-  // if (error || last_error) {
-  //   if (error.code === 'PGRST116' || last_error.code === 'PGRST116') {
-  //     // No rows returned
-  //     console.log('📭 No pending NFTs in queue', error, last_error);
-  //     return null;
-  //   }
-  //   throw error;
-  // }
-
-  if (error ) {
-    if (error.code === 'PGRST116') {
+    
+  const { data: last_data, error: last_error } = await supabase
+    .from('story_queue')
+    .select('*')
+    .eq('status', 'completed')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+    
+  console.log(data, last_data);
+  if (error || last_error) {
+    if (error.code === 'PGRST116' || last_error.code === 'PGRST116') {
       // No rows returned
-      console.log('📭 No pending NFTs in queue', error);
+      console.log('📭 No pending NFTs in queue', error, last_error);
       return null;
     }
     throw error;
   }
 
-  const nft_url = await generateImage(data.prompt, "https://v3.fal.media/files/elephant/ny-iMp0Xuo4_4rsmowdEO.png"); //`https://gateway.pinata.cloud/ipfs/${last_data.nft_ipfshash}`);
+  // if (error ) {
+  //   if (error.code === 'PGRST116') {
+  //     // No rows returned
+  //     console.log('📭 No pending NFTs in queue', error);
+  //     return null;
+  //   }
+  //   throw error;
+  // }
+
+  const nft_url = await generateImage(data.prompt, `https://gateway.pinata.cloud/ipfs/${last_data.nft_ipfshash}`);
   const ipfs = await uploadImageToIPFS(nft_url);
   data.nft_ipfshash = ipfs
 
@@ -176,11 +177,34 @@ async function getNextPendingNFT() {
 }
 
 async function updateNFTStatus(id: number, status: string, updates: any = {}) {
-  const { error } = await supabase
-    .from('story_queue')
-    .upsert({ id, status, ...updates }, { onConflict: ['id'] });
+  console.log(`🔄 Updating NFT status for ID ${id} to "${status}"`);
+  console.log('Updates:', updates);
 
-  if (error) throw error;
+  try {
+    const updateData = {
+      id,
+      status,
+      ...updates
+    };
+
+    // FIXED: Use update instead of upsert, and add proper error handling
+    const { data, error } = await supabase
+      .from('story_queue')
+      .update(updateData)
+      .eq('id', id)
+      .select(); // Add select to get the updated row back
+
+    if (error) {
+      console.error('❌ Database update error:', error);
+      throw error;
+    }
+
+    console.log('✅ Database updated successfully:', data);
+    return data;
+  } catch (error) {
+    console.error('❌ updateNFTStatus failed:', error);
+    throw error;
+  }
 }
 
 
@@ -259,7 +283,9 @@ async function main() {
 
     
     // Mark as processing
-    await updateNFTStatus(nftData.id, 'processing', { nft_ipfshash: nftData.nft_ipfshash  });
+    await updateNFTStatus(nftData.id, 'processing', {
+      nft_ipfshash: nftData.nft_ipfshash
+    });
 
     let result;
     let lastError;
@@ -293,7 +319,7 @@ async function main() {
       tx: result.hash,
       coin: result.address,
       posted_at: new Date().toISOString(),
-      ...nftData
+      nft_ipfshash: nftData.nft_ipfshash // Ensure this is included
     });
 
     // Send success notification to Discord
@@ -311,9 +337,11 @@ async function main() {
     console.error("❌ Error:", error);
     
     try {
-      await updateNFTStatus(id, 'failed', {
-        error_message: error instanceof Error ? error.message : 'Unknown error'
-      });
+      if (id) {
+        await updateNFTStatus(id, 'failed', {
+          error_message: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
     } catch (dbError) {
       console.error("❌ Database error:", dbError);
     }
