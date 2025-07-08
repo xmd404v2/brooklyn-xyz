@@ -21,17 +21,18 @@ interface FalResponse {
   error?: { message: string };
 }
 
-async function generateImage(prompt: string): Promise<string> {
+async function generateImage(prompt: string, img: string): Promise<string> {
   const maxRetries = 3;
   let lastError: Error | null = null;
 
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       console.log(`Image generation attempt ${attempt}/${maxRetries}`);
-      const result = await fal.run('fal-ai/flux/dev', {
+      const result = await fal.run("fal-ai/flux/dev/image-to-image", {
         input: {
-          prompt: `A vibrant, detailed scene: ${prompt}`,
-          image_size: 'square_hd',
+          image_url: img,
+          prompt: `Given the story character, make this new scene showing: ${prompt}`,
+          // image_size: 'square_hd',
           // num_inference_steps: 28,
           // enable_safety_checker: true,
         }

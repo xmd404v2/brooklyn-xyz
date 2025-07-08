@@ -24,7 +24,6 @@ const pinata = new PinataSDK({
 
 let id = null;
 let name = null;
-let prompt = "Anime-style cyberpunk female character with dark brown skin, sharp teal eyes, and a confident, determined expression. She wears a high-tech red and black armored exosuit with glowing blue and orange lines, featuring sci-fi straps, connectors, and a compact backpack unit. Large futuristic orange headphones with neon lights cover her ears, with visible cables hanging down. Her hair is tied into a high ponytail, styled in a sleek anime fashion. Her face has small cybernetic implants glowing faintly. The environment is a vibrant, stylized cyberpunk city at night — filled with exaggerated teal and orange neon signs, floating holograms, glowing advertisements, and tall angular buildings in the distance. The background is slightly blurred with soft anime lighting effects and bokeh-style lights. The entire scene is illustrated in a bold, cel-shaded anime/cartoon art style, not realistic — with clean outlines, vivid colors, and dramatic lighting contrast.";
 
 // Discord webhook function
 async function sendDiscordNotification(message: string, isError: boolean = false) {
@@ -136,35 +135,49 @@ async function uploadImageToIPFS(filePathOrUrl: string) {
 
 async function getNextPendingNFT() {
   const { data, error } = await supabase
-    .from('nft_queue')
+    .from('story_queue')
     .select('*')
     .eq('status', 'pending')
     .order('created_at', { ascending: true })
     .limit(1)
     .single();
+  console.log(data);
+  // const { last_data, last_error } = await supabase
+  //   .from('story_queue')
+  //   .select('*')
+  //   .eq('status', 'completed')
+  //   .order('created_at', { ascending: false })
+  //   .limit(1)
+  //   .single();
 
-  if (error) {
+  // if (error || last_error) {
+  //   if (error.code === 'PGRST116' || last_error.code === 'PGRST116') {
+  //     // No rows returned
+  //     console.log('📭 No pending NFTs in queue', error, last_error);
+  //     return null;
+  //   }
+  //   throw error;
+  // }
+
+  if (error ) {
     if (error.code === 'PGRST116') {
       // No rows returned
       console.log('📭 No pending NFTs in queue', error);
-      const nft_url = await generateImage(prompt);
-      const ipfs = await uploadImageToIPFS(nft_url);
-      return {
-        name: "Brooklyn", 
-        description: "Brooklyn replicate.",
-        nft_ipfshash: ipfs
-      }
-      // return null;
+      return null;
     }
     throw error;
   }
+
+  const nft_url = await generateImage(data.prompt, "https://v3.fal.media/files/elephant/ny-iMp0Xuo4_4rsmowdEO.png"); //`https://gateway.pinata.cloud/ipfs/${last_data.nft_ipfshash}`);
+  const ipfs = await uploadImageToIPFS(nft_url);
+  data.nft_ipfshash = ipfs
 
   return data;
 }
 
 async function updateNFTStatus(id: number, status: string, updates: any = {}) {
   const { error } = await supabase
-    .from('nft_queue')
+    .from('story_queue')
     .upsert({ id, status, ...updates }, { onConflict: ['id'] });
 
   if (error) throw error;
@@ -176,8 +189,8 @@ async function deployNFT(nftData: any) {
   
   // Create metadata object with the IPFS hash
   const metadata = {
-    name: nftData.name,
-    description: nftData.description,
+    name: nftData.title,
+    description: nftData.prompt,
     image: `ipfs://${ipfsHash}`,
     properties: {
       category: "social"
@@ -209,7 +222,7 @@ async function deployNFT(nftData: any) {
   });
   
   const coinParams = {
-    name: nftData.name,
+    name: nftData.title,
     symbol: 'BRKLYN',
     uri: `ipfs://${metadataCid}`, // Use proper IPFS URI format
     payoutRecipient: walletClient.account.address as Address,
@@ -234,17 +247,19 @@ async function main() {
     // Get the next pending NFT from database
     const nftData = await getNextPendingNFT();
     id = nftData?.id || uuidv4();
-    name = nftData?.name || null;
+    name = nftData?.title || null;
     
     if (!nftData) {
       console.log('No pending NFTs to process');
       return;
     }
 
-    console.log(`Processing: ${nftData.name}`);
+    console.log(`Processing: ${nftData.title} ${nftData}`);
+    console.log(JSON.stringify(nftData, null, 2));   // 2‑space indent
+
     
     // Mark as processing
-    await updateNFTStatus(nftData.id, 'processing', nftData);
+    await updateNFTStatus(nftData.id, 'processing', { nft_ipfshash: nftData.nft_ipfshash  });
 
     let result;
     let lastError;
@@ -282,11 +297,11 @@ async function main() {
     });
 
     // Send success notification to Discord
-    const successMessage = `**${nftData.name}** deployed successfully!\n\n` +
+    const successMessage = `**${nftData.title}** deployed successfully!\n\n` +
       `🔗 **View On ZORA:** [${result.address}](https://testnet.zora.co/coin/bsep:${result.address})\n` +
       `🔗 **Transaction:** [${result.hash}](https://sepolia.basescan.org/tx/${result.hash})\n` +
       `🪙 **Coin Address:** \`${result.address}\`\n` +
-      `📝 **Description:** ${nftData.description}\n` +
+      `📝 **Description:** ${nftData.prompt}\n` +
       `🖼️ **Image:** [View on IPFS](https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash})`;
     
     await sendDiscordNotification(successMessage, false);
