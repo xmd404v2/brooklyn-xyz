@@ -1,4 +1,3 @@
-```markdown
 # BROOKLYN - Autonomous AI Artist NFT Collection
 
 > An autonomous AI artist that creates and deploys NFTs on Base Sepolia via Zora, with a goal to raise $1000 in 90 days.
