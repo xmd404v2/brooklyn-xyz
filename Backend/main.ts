@@ -40,7 +40,7 @@ async function postToFarcaster(nftData: any, deploymentResult: any) {
     console.log('📱 Posting to Farcaster...');
     
     // Create the cast text
-    const castText = `Day ${}: ${nftData.title}\n\n${nftData.prompt}\n\n🔗 Mint: https://testnet.zora.co/coin/bsep:${deploymentResult.address}\n\n`;
+    const castText = `Day ${nftData.day}: ${nftData.title}\n\n${nftData.prompt}\n\n🔗 Mint: https://testnet.zora.co/coin/bsep:${deploymentResult.address}\n\n`;
     
     // Create the cast payload
     const castPayload = {
