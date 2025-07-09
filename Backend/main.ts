@@ -386,22 +386,11 @@ async function main() {
     try {
       console.log('📱 Attempting to post to Farcaster...');
       farcasterResult = await postToFarcaster(nftData, result);
-      
       if (farcasterResult) {
-        // Update database with Farcaster info
-        await updateNFTStatus(nftData.id, 'completed', {
-          farcaster_hash: farcasterResult.hash,
-          farcaster_url: farcasterResult.url,
-          farcaster_posted_at: new Date().toISOString()
-        });
         console.log('✅ Farcaster post successful and database updated');
       }
     } catch (farcasterError) {
       console.error('❌ Farcaster posting failed:', farcasterError);
-      // Don't fail the entire process if Farcaster posting fails
-      await updateNFTStatus(nftData.id, 'completed', {
-        farcaster_error: farcasterError instanceof Error ? farcasterError.message : 'Unknown Farcaster error'
-      });
     }
 
     // Send success notification to Discord
