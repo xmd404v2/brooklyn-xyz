@@ -25,6 +25,97 @@ const pinata = new PinataSDK({
 let id = null;
 let name = null;
 
+// Neynar API configuration
+const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
+const NEYNAR_SIGNER_UUID = process.env.NEYNAR_SIGNER_UUID;
+
+// Farcaster posting function using Neynar
+async function postToFarcaster(nftData: any, deploymentResult: any) {
+  if (!NEYNAR_API_KEY || !NEYNAR_SIGNER_UUID) {
+    console.log('⚠️ Neynar API key or signer UUID not configured, skipping Farcaster post');
+    return null;
+  }
+
+  try {
+    console.log('📱 Posting to Farcaster...');
+    
+    // Create the cast text
+    const castText = `🎨 ${nftData.title}\n\n${nftData.prompt}\n\n🔗 Mint: https://testnet.zora.co/coin/bsep:${deploymentResult.address}\n\n#NFT #ZORA #BaseSepolia`;
+    
+    // First, upload the image to Neynar for embedding
+    let imageUrl = null;
+    try {
+      const imageResponse = await fetch(`https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash}`);
+      if (imageResponse.ok) {
+        const imageBuffer = await imageResponse.arrayBuffer();
+        const imageFile = new File([imageBuffer], 'nft.png', { type: 'image/png' });
+        
+        const formData = new FormData();
+        formData.append('file', imageFile);
+        
+        const uploadResponse = await fetch('https://api.neynar.com/v2/farcaster/storage/upload', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${NEYNAR_API_KEY}`,
+          },
+          body: formData,
+        });
+        
+        if (uploadResponse.ok) {
+          const uploadData = await uploadResponse.json();
+          imageUrl = uploadData.url;
+          console.log('✅ Image uploaded to Neynar:', imageUrl);
+        } else {
+          console.error('❌ Failed to upload image to Neynar:', await uploadResponse.text());
+        }
+      }
+    } catch (imageError) {
+      console.error('❌ Error uploading image to Neynar:', imageError);
+    }
+    
+    // Create the cast payload
+    const castPayload = {
+      signer_uuid: NEYNAR_SIGNER_UUID,
+      text: castText,
+      ...(imageUrl && { 
+        embeds: [{ url: imageUrl }] 
+      })
+    };
+    
+    console.log('📝 Cast payload:', castPayload);
+    
+    // Post the cast
+    const castResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NEYNAR_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(castPayload),
+    });
+    
+    if (!castResponse.ok) {
+      const errorText = await castResponse.text();
+      throw new Error(`Neynar API error: ${castResponse.status} - ${errorText}`);
+    }
+    
+    const castData = await castResponse.json();
+    console.log('✅ Posted to Farcaster successfully!');
+    console.log('Cast hash:', castData.cast.hash);
+    console.log('Cast URL:', `https://warpcast.com/${castData.cast.author.username}/${castData.cast.hash}`);
+    
+    return {
+      hash: castData.cast.hash,
+      url: `https://warpcast.com/${castData.cast.author.username}/${castData.cast.hash}`,
+      author: castData.cast.author.username
+    };
+    
+  } catch (error) {
+    console.error('❌ Failed to post to Farcaster:', error);
+    throw error;
+  }
+}
+
 // Discord webhook function
 async function sendDiscordNotification(message: string, isError: boolean = false) {
   try {
@@ -278,9 +369,8 @@ async function main() {
       return;
     }
 
-    console.log(`Processing: ${nftData.title} ${nftData}`);
-    console.log(JSON.stringify(nftData, null, 2));   // 2‑space indent
-
+    console.log(`Processing: ${nftData.title}`);
+    console.log(JSON.stringify(nftData, null, 2));
     
     // Mark as processing
     await updateNFTStatus(nftData.id, 'processing', {
@@ -322,13 +412,37 @@ async function main() {
       nft_ipfshash: nftData.nft_ipfshash // Ensure this is included
     });
 
+    // Post to Farcaster
+    let farcasterResult = null;
+    try {
+      console.log('📱 Attempting to post to Farcaster...');
+      farcasterResult = await postToFarcaster(nftData, result);
+      
+      if (farcasterResult) {
+        // Update database with Farcaster info
+        await updateNFTStatus(nftData.id, 'completed', {
+          farcaster_hash: farcasterResult.hash,
+          farcaster_url: farcasterResult.url,
+          farcaster_posted_at: new Date().toISOString()
+        });
+        console.log('✅ Farcaster post successful and database updated');
+      }
+    } catch (farcasterError) {
+      console.error('❌ Farcaster posting failed:', farcasterError);
+      // Don't fail the entire process if Farcaster posting fails
+      await updateNFTStatus(nftData.id, 'completed', {
+        farcaster_error: farcasterError instanceof Error ? farcasterError.message : 'Unknown Farcaster error'
+      });
+    }
+
     // Send success notification to Discord
     const successMessage = `**${nftData.title}** deployed successfully!\n\n` +
       `🔗 **View On ZORA:** [${result.address}](https://testnet.zora.co/coin/bsep:${result.address})\n` +
       `🔗 **Transaction:** [${result.hash}](https://sepolia.basescan.org/tx/${result.hash})\n` +
       `🪙 **Coin Address:** \`${result.address}\`\n` +
       `📝 **Description:** ${nftData.prompt}\n` +
-      `🖼️ **Image:** [View on IPFS](https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash})`;
+      `🖼️ **Image:** [View on IPFS](https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash})` +
+      (farcasterResult ? `\n📱 **Farcaster:** [View Cast](${farcasterResult.url})` : '');
     
     await sendDiscordNotification(successMessage, false);
 
