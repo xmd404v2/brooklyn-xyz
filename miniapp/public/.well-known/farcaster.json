@@ -1,0 +1,13 @@
+{
+  "frame": {
+    "version": "1",
+    "name": "Cipher City",
+    "iconUrl": "https://your-app.vercel.app/assets/brooklyn_sprite_excited.png",
+    "homeUrl": "https://your-app.vercel.app/",
+    "imageUrl": "https://your-app.vercel.app/assets/brooklyn_sprite_excited.png",
+    "buttonTitle": "Play Cipher City",
+    "splashImageUrl": "https://your-app.vercel.app/assets/brooklyn_sprite_excited.png",
+    "splashBackgroundColor": "#10121a",
+    "webhookUrl": "https://your-app.vercel.app/api/frame"
+  }
+} 

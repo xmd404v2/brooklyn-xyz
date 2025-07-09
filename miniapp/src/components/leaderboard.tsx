@@ -11,7 +11,7 @@ interface LeaderboardEntry {
   rank?: number
 }
 
-export function Leaderboard() {
+export function Leaderboard({ simple }: { simple?: boolean }) {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -60,6 +60,14 @@ export function Leaderboard() {
   }
 
   if (isLoading) {
+    if (simple) {
+      return (
+        <div className="bg-[#181a20] border border-gray-700 rounded-lg p-4 w-full">
+          <div className="font-semibold text-white mb-2">Leaderboard</div>
+          <div className="text-gray-400 text-sm">Loading...</div>
+        </div>
+      )
+    }
     return (
       <div className="bg-[var(--neon-card)] border border-[var(--neon-cyan)] rounded-lg p-4 shadow-xl neon-card">
         <div className="flex items-center space-x-2 mb-4">
@@ -74,6 +82,27 @@ export function Leaderboard() {
               <div className="w-12 h-4 bg-[var(--neon-cyan)] rounded"></div>
             </div>
           ))}
+        </div>
+      </div>
+    )
+  }
+
+  if (simple) {
+    return (
+      <div className="bg-[#181a20] border border-gray-700 rounded-lg p-4 w-full">
+        <div className="font-semibold text-white mb-2">Leaderboard</div>
+        <div className="flex flex-col gap-2">
+          {leaderboard.length === 0 ? (
+            <div className="text-gray-400 text-sm text-center py-2">No players yet. Be the first to play!</div>
+          ) : (
+            leaderboard.map((entry, index) => (
+              <div key={entry.farcaster_id} className="flex items-center justify-between text-white text-sm px-2 py-1">
+                <span className="w-6 text-gray-400">{index + 1}.</span>
+                <span className="flex-1 truncate">@{entry.farcaster_id.slice(0, 8)}...</span>
+                <span className="font-bold">{entry.points}</span>
+              </div>
+            ))
+          )}
         </div>
       </div>
     )

@@ -34,6 +34,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={"dark " + orbitron.variable}>
+      <head>
+        <meta name="fc:frame" content='{"version":"next","imageUrl":"https://your-app.vercel.app/assets/brooklyn_sprite_excited.png","button":{"title":"Play Cipher City","action":{"type":"launch_frame","name":"Cipher City","url":"https://your-app.vercel.app","splashImageUrl":"https://your-app.vercel.app/assets/brooklyn_sprite_excited.png","splashBackgroundColor":"#10121a"}}}' />
+      </head>
       <body className={inter.className + ' dark bg-[#10121a] text-white font-sans ' + orbitron.variable}>
         <ErrorBoundary>
           <EnvCheck />

@@ -2,61 +2,38 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 import { shuffleArray, getTodayString } from '@/lib/utils'
 
-// GET /api/hints - Returns today's hints in randomized order
+// GET /api/hints - Returns a random story's hints in randomized order
 export async function GET() {
   try {
-    const today = getTodayString()
-    
-    // Get today's story from story_queue
-    // First try to get by date range
-    let { data: storyData, error: storyError } = await supabase
+    // Get all stories from story_queue
+    const { data: stories, error: storiesError } = await supabase
       .from('story_queue')
       .select('*')
-      .gte('created_at', today)
-      .lt('created_at', new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000).toISOString())
-      .single()
 
-    // If no story found for today, get the most recent story
-    if (storyError && storyError.code === 'PGRST116') {
-      const { data: recentStory, error: recentError } = await supabase
-        .from('story_queue')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (recentError) {
-        console.error('Error fetching recent story:', recentError)
-        return NextResponse.json({ error: 'No stories available' }, { status: 404 })
-      }
-
-      storyData = recentStory
-      storyError = null
+    if (storiesError || !stories || stories.length === 0) {
+      console.error('Error fetching stories:', storiesError)
+      return NextResponse.json({ error: 'No stories available' }, { status: 404 })
     }
 
-    if (storyError) {
-      console.error('Error fetching story:', storyError)
-      return NextResponse.json({ error: 'No story found for today' }, { status: 404 })
-    }
+    // Pick a random story
+    const storyData = stories[Math.floor(Math.random() * stories.length)]
 
-    // For now, we'll create hints from the prompt since hints field doesn't exist yet
-    // In a real implementation, this would come from storyData.hints
-    const prompt = storyData.prompt
-    const words = prompt.split(' ').filter(word => word.length > 3)
-    const correctHint = words.slice(0, 5).join(' ') + '...'
-    const incorrectHint1 = words.slice(5, 10).join(' ') + '...'
-    const incorrectHint2 = words.slice(10, 15).join(' ') + '...'
-    
-    const hints = [correctHint, incorrectHint1, incorrectHint2]
-    const shuffledHints = shuffleArray(hints)
-    
-    // Find the index of the correct hint in the shuffled array
+    // Use the hints array from the story
+    const hints = Array.isArray(storyData.hints) ? [...storyData.hints] : []
+    if (hints.length < 1) {
+      return NextResponse.json({ error: 'No hints available for this story' }, { status: 404 })
+    }
+    // The first hint is always the correct answer
+    const correctHint = hints[0]
+    // Shuffle the hints for display
+    const shuffledHints = shuffleArray([...hints])
     const correctIndex = shuffledHints.findIndex(hint => hint === correctHint)
 
     return NextResponse.json({
       hints: shuffledHints,
       correctIndex,
-      day: storyData.day
+      day: storyData.day,
+      title: storyData.title
     })
   } catch (error) {
     console.error('API Error:', error)
@@ -67,82 +44,29 @@ export async function GET() {
 // POST /api/hints - Records user's guess and returns result
 export async function POST(request: NextRequest) {
   try {
-    const { userId, selectedHintIndex } = await request.json()
-    
-    if (!userId || selectedHintIndex === undefined) {
-      return NextResponse.json({ error: 'Missing userId or selectedHintIndex' }, { status: 400 })
+    const { userId, selectedHintIndex, hints } = await request.json()
+    if (!userId || selectedHintIndex === undefined || !Array.isArray(hints)) {
+      return NextResponse.json({ error: 'Missing userId, selectedHintIndex, or hints' }, { status: 400 })
     }
+    // The first hint in the hints array is the correct answer
+    const correctHint = hints[0]
+    const isCorrect = hints[selectedHintIndex] === correctHint
+    const pointsToAdd = isCorrect ? 10 : 3
 
-    const today = getTodayString()
-    
-    // Check if user has already guessed today
-    const { data: existingUser, error: userError } = await supabase
+    // Fetch user
+    const { data: existingUser } = await supabase
       .from('users')
       .select('*')
-      .eq('farcaster_id', userId)
+      .eq('id', userId)
       .single()
-
-    if (existingUser?.last_guess_date === today) {
-      return NextResponse.json({
-        success: false,
-        isCorrect: false,
-        message: 'You have already played today! Come back tomorrow.',
-        points: existingUser.points
-      })
-    }
-
-    // Get today's story to check the correct answer
-    // First try to get by date range
-    let { data: storyData, error: storyError } = await supabase
-      .from('story_queue')
-      .select('*')
-      .gte('created_at', today)
-      .lt('created_at', new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000).toISOString())
-      .single()
-
-    // If no story found for today, get the most recent story
-    if (storyError && storyError.code === 'PGRST116') {
-      const { data: recentStory, error: recentError } = await supabase
-        .from('story_queue')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single()
-
-      if (recentError) {
-        return NextResponse.json({ error: 'No stories available' }, { status: 404 })
-      }
-
-      storyData = recentStory
-      storyError = null
-    }
-
-    if (storyError) {
-      return NextResponse.json({ error: 'No story found for today' }, { status: 404 })
-    }
-
-    // Create hints (same logic as GET)
-    const prompt = storyData.prompt
-    const words = prompt.split(' ').filter(word => word.length > 3)
-    const correctHint = words.slice(0, 5).join(' ') + '...'
-    const incorrectHint1 = words.slice(5, 10).join(' ') + '...'
-    const incorrectHint2 = words.slice(10, 15).join(' ') + '...'
-    
-    const hints = [correctHint, incorrectHint1, incorrectHint2]
-    const shuffledHints = shuffleArray(hints)
-    const correctIndex = shuffledHints.findIndex(hint => hint === correctHint)
-
-    const isCorrect = selectedHintIndex === correctIndex
-    const pointsToAdd = isCorrect ? 10 : 0
 
     // Upsert user record
     const { error: upsertError } = await supabase
       .from('users')
       .upsert({
-        farcaster_id: userId,
+        id: userId,
         points: (existingUser?.points || 0) + pointsToAdd,
-        last_guess_date: today,
-      }, { onConflict: 'farcaster_id' })
+      }, { onConflict: 'id' })
 
     if (upsertError) {
       console.error('Error upserting user:', upsertError)
@@ -153,7 +77,7 @@ export async function POST(request: NextRequest) {
     const { data: userData, error: selectError } = await supabase
       .from('users')
       .select('*')
-      .eq('farcaster_id', userId)
+      .eq('id', userId)
       .single()
 
     if (selectError) {
@@ -164,9 +88,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       isCorrect,
-      message: isCorrect 
-        ? '🎉 Correct! You earned 10 points!' 
-        : 'Not your lucky day today. Try again tomorrow!',
+      message: isCorrect
+        ? '🎉 Correct! You earned 10 points!'
+        : 'Not your lucky day today. You earned 3 points!',
       points: userData.points
     })
   } catch (error) {

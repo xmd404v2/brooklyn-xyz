@@ -1,27 +1,17 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server';
+import { createFrameResponse } from 'frames.js/server';
 
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json()
-    const { untrustedData } = body
-    
-    // For now, just redirect to the main game page
-    // In a full implementation, you'd handle the frame interaction here
-    return NextResponse.json({
-      frames: {
-        version: 'vNext',
-        image: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/assets/brooklyn_sprite_excited.png`,
-        buttons: [
-          {
-            label: 'Play Daily Hints Game',
-            action: 'post_redirect',
-            target: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}`
-          }
-        ]
-      }
-    })
-  } catch (error) {
-    console.error('Frame API Error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+export async function POST(req: NextRequest) {
+  // You can parse the request and handle frame state here if needed
+
+  // Example: simple frame with a button
+  const frame = createFrameResponse({
+    image: 'https://your-app.vercel.app/assets/brooklyn_sprite_excited.png', // Replace with your deployed image URL
+    buttons: [
+      { label: 'Play Cipher City', action: 'post_redirect', target: 'https://your-app.vercel.app' } // Replace with your deployed app URL
+    ],
+    postUrl: 'https://your-app.vercel.app/api/frame', // Replace with your deployed frame endpoint
+  });
+
+  return NextResponse.json(frame);
 } 

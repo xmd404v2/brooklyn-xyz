@@ -1,0 +1,96 @@
+# PRD: Brooklyn Farcaster Mini App – Daily Hints Game (Hints-Only Version)
+
+---
+
+## 1. **Goal**
+
+Build a Farcaster Mini App that:
+- Shows users 3 hint cards (from today’s `story_queue.hints`)
+- Lets users pick one card per day
+- Awards points/Zora Coins for correct guesses
+- Does **not** display any story, title, or prompt
+
+---
+
+## 2. **User Stories**
+
+- **As a user**, I want to see 3 hint cards each day.
+- **As a user**, I want to pick one card and confirm my guess.
+- **As a user**, I want to know if I was correct and see my updated points.
+- **As a user**, I want to play only once per day.
+
+---
+
+## 3. **Database Usage**
+
+- **story_queue.hints**:  
+  - Stores an array of 3 hints for each day (one correct, two incorrect).
+  - Only this field is queried for the game.
+
+- **users**:  
+  - Tracks user points and guesses.
+
+---
+
+## 4. **API Endpoints**
+
+### **GET /api/hints**
+- **Returns:**  
+  - Today’s 3 hints (randomized order, no indication of which is correct)
+- **Logic:**  
+  - Query `story_queue` for today (by `day` or `created_at`)
+  - Parse and return the `hints` array
+
+### **POST /api/hints**
+- **Request:**  
+  - `{ userId, selectedHintIndex }`
+- **Logic:**  
+  - Check if user has already guessed today
+  - If not, check if selected hint is correct (compare to correct index in `hints`)
+  - If correct: increment `users.points`, return success
+  - If incorrect: return failure
+- **Returns:**  
+  - `{ success: boolean, isCorrect: boolean, message: string, points?: number }`
+
+---
+
+## 5. **Game Flow**
+
+1. **User visits Mini App**
+2. **GET /api/hints**: Fetch today’s hints, display as 3 cards
+3. **User selects a card**: UI highlights selection, shows “Pick This Card” button
+4. **User confirms guess**:  
+   - **POST /api/hints** with their choice
+   - Show result (success/failure, updated points)
+5. **User cannot play again until next day**
+
+---
+
+## 6. **Frontend UI**
+
+- **Three card layout** (hints only, no story/title)
+- **Selection state** for cards
+- **“Pick This Card” button** after selection
+- **Feedback modal** for result
+- **Points display** (optional, in header or profile)
+
+---
+
+## 7. **Farcaster Mini App Requirements**
+
+- **Frame Metadata:** For Farcaster compatibility
+- **Farcaster Auth:** Use Neynar/Farcaster Connect for user ID
+- **Mobile-first, fast loading**
+
+---
+
+## 8. **Step-by-Step Implementation Plan**
+
+1. **Scaffold Next.js app in `miniapp/`**
+2. **Set up Supabase client**
+3. **Implement `/api/hints` GET (fetch today’s hints)**
+4. **Implement `/api/hints` POST (record guess, update points)**
+5. **Build UI: 3 cards, selection, “Pick This Card”**
+6. **Add feedback modal for result**
+7. **Integrate Farcaster Connect for user auth**
+8. **Deploy and test in Farcaster Frame**

@@ -16,6 +16,7 @@ interface GameData {
   hints: string[]
   correctIndex: number
   day: number
+  title: string // Add title to GameData
 }
 
 interface UserData {
@@ -35,8 +36,27 @@ export default function GamePage() {
     message: string
     points: number
   } | null>(null)
+  const [shuffledHints, setShuffledHints] = useState<string[]>([])
+  const [correctHint, setCorrectHint] = useState<string>("")
   const { user, isConnected, isLoading: authLoading } = useFarcasterAuth()
   const userId = user?.fid || 'demo-user'
+
+  // Shuffle function
+  function shuffleArray<T>(array: T[]): T[] {
+    const arr = [...array]
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1))
+      ;[arr[i], arr[j]] = [arr[j], arr[i]]
+    }
+    return arr
+  }
+
+  // Add helper for truncating userId
+  function truncateId(id: string) {
+    if (!id) return ''
+    if (id.length <= 12) return id
+    return `${id.slice(0, 6)}...${id.slice(-4)}`
+  }
 
   // Load game data on mount
   useEffect(() => {
@@ -50,6 +70,13 @@ export default function GamePage() {
       if (response.ok) {
         const data = await response.json()
         setGameData(data)
+        // Shuffle hints and store correct answer
+        if (data.hints && data.hints.length > 0) {
+          const correct = data.hints[0]
+          const shuffled = shuffleArray(data.hints)
+          setCorrectHint(correct)
+          setShuffledHints(shuffled)
+        }
       } else {
         console.error('Failed to load game data')
       }
@@ -67,9 +94,11 @@ export default function GamePage() {
 
   const handleSubmitGuess = async () => {
     if (selectedCard === null || isSubmitting) return
-
     try {
       setIsSubmitting(true)
+      const selectedHint = shuffledHints[selectedCard]
+      const isCorrect = selectedHint === correctHint
+      // POST to backend for points update
       const response = await fetch('/api/hints', {
         method: 'POST',
         headers: {
@@ -77,29 +106,18 @@ export default function GamePage() {
         },
         body: JSON.stringify({
           userId,
-          selectedHintIndex: selectedCard,
+          selectedHint,
         }),
       })
-
       const result = await response.json()
-      
-      if (result.success) {
-        setResultData({
-          isCorrect: result.isCorrect,
-          message: result.message,
-          points: result.points,
-        })
-        setUserData({ points: result.points })
-        setShowResult(true)
-      } else {
-        // Handle already played today
-        setResultData({
-          isCorrect: false,
-          message: result.message,
-          points: result.points || 0,
-        })
-        setShowResult(true)
-      }
+      setResultData({
+        isCorrect,
+        message: result.message,
+        points: result.points,
+      })
+      // Fetch latest user data for updated points
+      fetchUserData()
+      setShowResult(true)
     } catch (error) {
       console.error('Error submitting guess:', error)
     } finally {
@@ -107,17 +125,28 @@ export default function GamePage() {
     }
   }
 
+  // Add fetchUserData function
+  const fetchUserData = async () => {
+    try {
+      const response = await fetch(`/api/user?userId=${userId}`)
+      if (response.ok) {
+        const data = await response.json()
+        setUserData({ points: data.points })
+      }
+    } catch (error) {
+      // ignore
+    }
+  }
+
   const handleResultClose = () => {
     setShowResult(false)
     setResultData(null)
     setSelectedCard(null)
+    // Reload a new story and reshuffle
+    loadGameData()
   }
 
-  const hasPlayedToday = () => {
-    if (!userData?.lastGuessDate) return false
-    const today = new Date().toISOString().split('T')[0]
-    return userData.lastGuessDate === today
-  }
+  // Remove hasPlayedToday and daily restriction logic
 
   if (authLoading) {
     return (
@@ -132,7 +161,6 @@ export default function GamePage() {
   }
 
   if (!isConnected) {
-    // Show login with hero image centered
     return <LoginScreen />
   }
 
@@ -161,11 +189,6 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen p-4">
-      {/* User Profile */}
-      <div className="absolute top-4 right-4 z-10">
-        <UserProfile />
-      </div>
-
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -179,10 +202,13 @@ export default function GamePage() {
           </h1>
           <Sparkles className="w-8 h-8 text-[var(--neon-pink)] opacity-70" />
         </div>
-        <div className="flex items-center justify-center space-x-4 text-base text-white/80">
+        <div className="flex flex-col items-center justify-center space-y-2 text-base text-white/80">
           <div className="flex items-center space-x-1">
             <Clock className="w-4 h-4" />
             <span>Day {gameData.day}</span>
+          </div>
+          <div className="flex items-center space-x-1">
+            <span className="font-semibold text-lg">{gameData.title}</span>
           </div>
           {userData && (
             <div className="flex items-center space-x-1">
@@ -204,7 +230,7 @@ export default function GamePage() {
           Which clue cracks today's code?
         </p>
         <p className="text-base text-white/70">
-          1 guess per day · <span className="text-[var(--neon-yellow)] font-semibold">10 points for a correct answer</span>
+          Unlimited plays · <span className="text-[var(--neon-yellow)] font-semibold">10 points for a correct answer, 3 for incorrect</span>
         </p>
       </motion.div>
 
@@ -215,14 +241,14 @@ export default function GamePage() {
         transition={{ delay: 0.4 }}
         className="max-w-2xl mx-auto mb-8 space-y-8"
       >
-        {gameData.hints.map((hint, index) => (
+        {shuffledHints.map((hint, index) => (
           <HintCard
             key={index}
             hint={hint}
             index={index}
             isSelected={selectedCard === index}
             onClick={() => handleCardSelect(index)}
-            disabled={hasPlayedToday() || isSubmitting}
+            disabled={isSubmitting}
           />
         ))}
       </motion.div>
@@ -234,7 +260,7 @@ export default function GamePage() {
         transition={{ delay: 0.6 }}
         className="text-center"
       >
-        {selectedCard !== null && !hasPlayedToday() && (
+        {selectedCard !== null && (
           <Button
             onClick={handleSubmitGuess}
             disabled={isSubmitting}
@@ -254,29 +280,23 @@ export default function GamePage() {
             )}
           </Button>
         )}
+      </motion.div>
 
-        {hasPlayedToday() && (
-          <div className="bg-[var(--neon-card)] border border-[var(--neon-cyan)] rounded-lg p-4 max-w-md mx-auto mt-4 shadow-xl">
-            <div className="flex items-center space-x-2 text-[var(--neon-yellow)]">
-              <Clock className="w-5 h-5" />
-              <span className="font-medium">You've already played today!</span>
-            </div>
-            <p className="text-base text-[var(--neon-orange)] mt-1">
-              Come back tomorrow for new hints.
-            </p>
+      {/* User Stats Section */}
+      <div className="max-w-md mx-auto mt-16 w-full">
+        <div className="mb-4 p-4 rounded-lg bg-[#181a20] border border-[var(--neon-cyan)] flex items-center justify-between text-white">
+          <div>
+            <span className="block text-xs text-gray-400">User</span>
+            <span className="text-lg font-bold text-[var(--neon-cyan)]">{truncateId(userId)}</span>
           </div>
-        )}
-      </motion.div>
-
-      {/* Leaderboard */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.8 }}
-        className="max-w-2xl mx-auto mt-16"
-      >
-        <Leaderboard />
-      </motion.div>
+          <div>
+            <span className="block text-xs text-gray-400">Points</span>
+            <span className="text-lg font-bold text-[var(--neon-yellow)]">{userData?.points ?? 0}</span>
+          </div>
+        </div>
+        {/* Simple Leaderboard */}
+        <Leaderboard simple />
+      </div>
 
       {/* Result Dialog */}
       {resultData && (

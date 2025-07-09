@@ -41,7 +41,7 @@ export function FarcasterAuthProvider({ children }: { children: React.ReactNode 
         // For now, we'll use a demo user since the auth flow is complex
         // In production, you'd implement the full Farcaster auth flow
         setUser({
-          fid: 'demo-user-123',
+          fid: '00000000-0000-0000-0000-000000000001',
           username: 'demo',
           displayName: 'Demo User',
           pfp: undefined,
