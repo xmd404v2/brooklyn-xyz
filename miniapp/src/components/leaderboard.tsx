@@ -6,7 +6,7 @@ import { Trophy, Medal, Star } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 
 interface LeaderboardEntry {
-  farcaster_id: string
+  id: string
   points: number
   rank?: number
 }
@@ -24,7 +24,7 @@ export function Leaderboard({ simple }: { simple?: boolean }) {
       setIsLoading(true)
       const { data, error } = await supabase
         .from('users')
-        .select('farcaster_id, points')
+        .select('id, points')
         .order('points', { ascending: false })
         .limit(10)
 
@@ -96,9 +96,9 @@ export function Leaderboard({ simple }: { simple?: boolean }) {
             <div className="text-gray-400 text-sm text-center py-2">No players yet. Be the first to play!</div>
           ) : (
             leaderboard.map((entry, index) => (
-              <div key={entry.farcaster_id} className="flex items-center justify-between text-white text-sm px-2 py-1">
+              <div key={entry.id} className="flex items-center justify-between text-white text-sm px-2 py-1">
                 <span className="w-6 text-gray-400">{index + 1}.</span>
-                <span className="flex-1 truncate">@{entry.farcaster_id.slice(0, 8)}...</span>
+                <span className="flex-1 truncate">@{entry.id.slice(0, 8)}...</span>
                 <span className="font-bold">{entry.points}</span>
               </div>
             ))
@@ -127,7 +127,7 @@ export function Leaderboard({ simple }: { simple?: boolean }) {
         ) : (
           leaderboard.map((entry, index) => (
             <motion.div
-              key={entry.farcaster_id}
+              key={entry.id}
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: index * 0.1 }}
@@ -138,7 +138,7 @@ export function Leaderboard({ simple }: { simple?: boolean }) {
                   {getRankIcon(entry.rank!)}
                 </div>
                 <span className="text-sm font-semibold text-[var(--neon-cyan)] drop-shadow-[0_0_4px_var(--neon-cyan)]">
-                  @{entry.farcaster_id.slice(0, 8)}...
+                  @{entry.id.slice(0, 8)}...
                 </span>
               </div>
               <div className="flex items-center space-x-1">

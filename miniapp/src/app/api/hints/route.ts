@@ -44,47 +44,51 @@ export async function GET() {
 // POST /api/hints - Records user's guess and returns result
 export async function POST(request: NextRequest) {
   try {
-    const { userId, selectedHintIndex, hints } = await request.json()
-    if (!userId || selectedHintIndex === undefined || !Array.isArray(hints)) {
-      return NextResponse.json({ error: 'Missing userId, selectedHintIndex, or hints' }, { status: 400 })
+    const { userId, selectedHint } = await request.json()
+    if (!userId || !selectedHint) {
+      return NextResponse.json({ error: 'Missing userId or selectedHint' }, { status: 400 })
     }
-    // The first hint in the hints array is the correct answer
+    // Get all stories from story_queue
+    const { data: stories, error: storiesError } = await supabase
+      .from('story_queue')
+      .select('*')
+    if (storiesError || !stories || stories.length === 0) {
+      return NextResponse.json({ error: 'No stories available' }, { status: 404 })
+    }
+    // Pick a random story (simulate the same as GET)
+    const storyData = stories[Math.floor(Math.random() * stories.length)]
+    const hints = Array.isArray(storyData.hints) ? [...storyData.hints] : []
+    if (hints.length < 1) {
+      return NextResponse.json({ error: 'No hints available for this story' }, { status: 404 })
+    }
     const correctHint = hints[0]
-    const isCorrect = hints[selectedHintIndex] === correctHint
+    const isCorrect = selectedHint === correctHint
     const pointsToAdd = isCorrect ? 10 : 3
-
     // Fetch user
     const { data: existingUser } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single()
-
-    // Upsert user record
+    // Upsert user record (add to points)
     const { error: upsertError } = await supabase
       .from('users')
       .upsert({
         id: userId,
         points: (existingUser?.points || 0) + pointsToAdd,
       }, { onConflict: 'id' })
-
     if (upsertError) {
-      console.error('Error upserting user:', upsertError)
       return NextResponse.json({ error: 'Failed to update user data' }, { status: 500 })
     }
-
     // Fetch the updated user
     const { data: userData, error: selectError } = await supabase
       .from('users')
       .select('*')
       .eq('id', userId)
       .single()
-
     if (selectError) {
-      console.error('Error fetching user after upsert:', selectError)
       return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 })
     }
-
     return NextResponse.json({
       success: true,
       isCorrect,
@@ -94,7 +98,6 @@ export async function POST(request: NextRequest) {
       points: userData.points
     })
   } catch (error) {
-    console.error('API Error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 } 
