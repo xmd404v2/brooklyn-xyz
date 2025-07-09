@@ -16,7 +16,7 @@
 ### 1. Clone & Install
 
 ```bash
-git clone <your-repo-url>
+git clone git@github.com:BrooklynXYZ/brooklyn-backend.git
 cd brooklyn-backend
 
 # Install backend dependencies
