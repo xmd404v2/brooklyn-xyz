@@ -7,28 +7,26 @@ const supabase = createClient(
   process.env.SUPABASE_ANON_KEY!
 );
 
-async function syncJsonToSupabase(filePath: string) {
+async function syncHintsToSupabase(filePath: string) {
   // Read JSON file
   const jsonData = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
   
-  // Loop through and upload each entry
+  // Loop through and update each entry with hints
   for (const story of jsonData) {
     const { error } = await supabase
       .from('story_queue')
-      .insert({
-        day: parseInt(story.day),
-        title: story.title,
-        prompt: story.prompt,
-        status: 'pending'
-      });
+      .update({
+        hints: story.hints
+      })
+      .eq('day', parseInt(story.day));
     
     if (error) {
-      console.error(`Error inserting day ${story.day}:`, error);
+      console.error(`Error updating hints for day ${story.day}:`, error);
     } else {
-      console.log(`✓ Inserted day ${story.day}: ${story.title}`);
+      console.log(`✓ Updated hints for day ${story.day}: ${story.title}`);
     }
   }
 }
 
 // Usage
-syncJsonToSupabase('./story.json');
+syncHintsToSupabase('./story.json');
