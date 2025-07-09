@@ -121,4 +121,3 @@ Visit `http://localhost:3000` to manage NFTs.
 ## 📝 License
 
 ISC License
-```
