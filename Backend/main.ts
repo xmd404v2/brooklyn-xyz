@@ -40,45 +40,14 @@ async function postToFarcaster(nftData: any, deploymentResult: any) {
     console.log('📱 Posting to Farcaster...');
     
     // Create the cast text
-    const castText = `🎨 ${nftData.title}\n\n${nftData.prompt}\n\n🔗 Mint: https://testnet.zora.co/coin/bsep:${deploymentResult.address}\n\n#NFT #ZORA #BaseSepolia`;
-    
-    // First, upload the image to Neynar for embedding
-    let imageUrl = null;
-    try {
-      const imageResponse = await fetch(`https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash}`);
-      if (imageResponse.ok) {
-        const imageBuffer = await imageResponse.arrayBuffer();
-        const imageFile = new File([imageBuffer], 'nft.png', { type: 'image/png' });
-        
-        const formData = new FormData();
-        formData.append('file', imageFile);
-        
-        const uploadResponse = await fetch('https://api.neynar.com/v2/farcaster/storage/upload', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${NEYNAR_API_KEY}`,
-          },
-          body: formData,
-        });
-        
-        if (uploadResponse.ok) {
-          const uploadData = await uploadResponse.json();
-          imageUrl = uploadData.url;
-          console.log('✅ Image uploaded to Neynar:', imageUrl);
-        } else {
-          console.error('❌ Failed to upload image to Neynar:', await uploadResponse.text());
-        }
-      }
-    } catch (imageError) {
-      console.error('❌ Error uploading image to Neynar:', imageError);
-    }
+    const castText = `Day ${}: ${nftData.title}\n\n${nftData.prompt}\n\n🔗 Mint: https://testnet.zora.co/coin/bsep:${deploymentResult.address}\n\n`;
     
     // Create the cast payload
     const castPayload = {
       signer_uuid: NEYNAR_SIGNER_UUID,
       text: castText,
-      ...(imageUrl && { 
-        embeds: [{ url: imageUrl }] 
+      ...(`https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash}` && { 
+        embeds: [{ url: `https://gateway.pinata.cloud/ipfs/${nftData.nft_ipfshash}` }] 
       })
     };
     
@@ -88,7 +57,7 @@ async function postToFarcaster(nftData: any, deploymentResult: any) {
     const castResponse = await fetch('https://api.neynar.com/v2/farcaster/cast', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${NEYNAR_API_KEY}`,
+        'x-api-key': `${NEYNAR_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(castPayload),
