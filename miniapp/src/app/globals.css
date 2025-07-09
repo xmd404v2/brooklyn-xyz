@@ -2,6 +2,8 @@
 @tailwind components;
 @tailwind utilities;
 
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@700&display=swap');
+
 @layer base {
   :root {
     --background: 0 0% 100%;
@@ -24,28 +26,40 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 221.2 83.2% 53.3%;
     --radius: 0.5rem;
+    /* Neon colors */
+    --neon-orange: #ff6a00;
+    --neon-cyan: #00fff7;
+    --neon-pink: #ff00c8;
+    --neon-blue: #00bfff;
+    --neon-yellow: #ffe600;
+    --neon-bg: #181a20;
+    --neon-card: #23243a;
+    --neon-card-glow: 0 0 24px 0 #00fff7, 0 0 8px 0 #ff00c8;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
+    --background: 230 15% 10%;
     --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
+    --card: 230 15% 14%;
     --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
+    --popover: 230 15% 12%;
     --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 84% 4.9%;
-    --secondary: 217.2 32.6% 17.5%;
+    --primary: 166 100% 50%;
+    --primary-foreground: 230 15% 10%;
+    --secondary: 291 100% 50%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
+    --muted: 230 15% 18%;
     --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
+    --accent: 291 100% 50%;
     --accent-foreground: 210 40% 98%;
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 94.1%;
+    --border: 230 15% 18%;
+    --input: 230 15% 18%;
+    --ring: 166 100% 50%;
+    --neon-bg: #181a20;
+    --neon-card: #23243a;
+    --neon-card-glow: 0 0 24px 0 #00fff7, 0 0 8px 0 #ff00c8;
   }
 }
 
@@ -55,7 +69,59 @@
   }
   body {
     @apply bg-background text-foreground;
+    background-color: var(--neon-bg);
+    color: #e0e6f0;
   }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-orbitron), 'Orbitron', 'Inter', 'Arial', sans-serif;
+    letter-spacing: 0.04em;
+    text-shadow: 0 0 12px var(--neon-cyan), 0 0 2px var(--neon-pink);
+  }
+}
+
+/* Animated background gradient movement */
+@keyframes gradient-move {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-gradient-move {
+  background-size: 200% 200%;
+  animation: gradient-move 12s ease-in-out infinite;
+}
+
+/* Floating particles */
+@keyframes float-particle {
+  0% { transform: translateY(0) scale(1); opacity: 0.2; }
+  50% { transform: translateY(-40px) scale(1.2); opacity: 0.4; }
+  100% { transform: translateY(0) scale(1); opacity: 0.2; }
+}
+.animate-float-particle {
+  animation: float-particle 6s ease-in-out infinite;
+}
+
+/* Custom cyberpunk neon card and glow */
+.neon-card {
+  background: var(--neon-card);
+  box-shadow: var(--neon-card-glow);
+  border: 1.5px solid var(--neon-cyan);
+  transition: box-shadow 0.2s, border-color 0.2s;
+}
+.neon-card.selected {
+  border-color: var(--neon-orange);
+  box-shadow: 0 0 32px 0 var(--neon-orange), 0 0 16px 0 var(--neon-cyan);
+}
+
+.neon-btn {
+  background: linear-gradient(90deg, var(--neon-orange), var(--neon-pink));
+  color: #fff;
+  border: none;
+  box-shadow: 0 0 12px 0 var(--neon-pink), 0 0 8px 0 var(--neon-orange);
+  transition: box-shadow 0.2s, background 0.2s;
+}
+.neon-btn:hover {
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-blue));
+  box-shadow: 0 0 24px 0 var(--neon-cyan), 0 0 12px 0 var(--neon-blue);
 }
 
 /* Custom animations for the game */

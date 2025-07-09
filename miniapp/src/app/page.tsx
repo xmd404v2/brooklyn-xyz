@@ -6,6 +6,11 @@ import { HintCard } from '@/components/hint-card'
 import { ResultDialog } from '@/components/result-dialog'
 import { Button } from '@/components/ui/button'
 import { Star, Sparkles, Clock } from 'lucide-react'
+import { useFarcasterAuth } from '@/lib/farcaster-auth'
+import { LoginScreen } from '@/components/login-screen'
+import { UserProfile } from '@/components/user-profile'
+import { Leaderboard } from '@/components/leaderboard'
+import Image from 'next/image'
 
 interface GameData {
   hints: string[]
@@ -30,7 +35,8 @@ export default function GamePage() {
     message: string
     points: number
   } | null>(null)
-  const [userId, setUserId] = useState<string>('demo-user') // In real app, this would come from Farcaster Connect
+  const { user, isConnected, isLoading: authLoading } = useFarcasterAuth()
+  const userId = user?.fid || 'demo-user'
 
   // Load game data on mount
   useEffect(() => {
@@ -113,13 +119,30 @@ export default function GamePage() {
     return userData.lastGuessDate === today
   }
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+          className="w-16 h-16 border-4 border-[var(--neon-cyan)] border-t-transparent rounded-full"
+        />
+      </div>
+    )
+  }
+
+  if (!isConnected) {
+    // Show login with hero image centered
+    return <LoginScreen />
+  }
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <motion.div
           animate={{ rotate: 360 }}
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full"
+          className="w-16 h-16 border-4 border-[var(--neon-cyan)] border-t-transparent rounded-full"
         />
       </div>
     )
@@ -129,8 +152,8 @@ export default function GamePage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800 mb-4">No Game Available</h1>
-          <p className="text-gray-600">Check back later for today's hints!</p>
+          <h1 className="text-3xl font-orbitron font-bold text-[var(--neon-cyan)] drop-shadow-[0_0_16px_var(--neon-cyan)] mb-4">No Game Available</h1>
+          <p className="text-lg text-[var(--neon-orange)]">Check back later for today's hints!</p>
         </div>
       </div>
     )
@@ -138,6 +161,11 @@ export default function GamePage() {
 
   return (
     <div className="min-h-screen p-4">
+      {/* User Profile */}
+      <div className="absolute top-4 right-4 z-10">
+        <UserProfile />
+      </div>
+
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
@@ -145,21 +173,20 @@ export default function GamePage() {
         className="text-center mb-8"
       >
         <div className="flex items-center justify-center space-x-2 mb-4">
-          <Sparkles className="w-8 h-8 text-purple-500" />
-          <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-            Brooklyn's Daily Hints
+          <Sparkles className="w-8 h-8 text-[var(--neon-pink)] opacity-70" />
+          <h1 className="text-4xl md:text-5xl font-orbitron font-bold text-white tracking-wide drop-shadow-lg">
+            Cipher City
           </h1>
-          <Sparkles className="w-8 h-8 text-purple-500" />
+          <Sparkles className="w-8 h-8 text-[var(--neon-pink)] opacity-70" />
         </div>
-        
-        <div className="flex items-center justify-center space-x-4 text-sm text-gray-600">
+        <div className="flex items-center justify-center space-x-4 text-base text-white/80">
           <div className="flex items-center space-x-1">
             <Clock className="w-4 h-4" />
             <span>Day {gameData.day}</span>
           </div>
           {userData && (
             <div className="flex items-center space-x-1">
-              <Star className="w-4 h-4 text-yellow-500" />
+              <Star className="w-4 h-4 text-[var(--neon-yellow)]" />
               <span>{userData.points} Points</span>
             </div>
           )}
@@ -173,11 +200,11 @@ export default function GamePage() {
         transition={{ delay: 0.2 }}
         className="text-center mb-8"
       >
-        <p className="text-lg text-gray-700 mb-2">
-          Pick the hint that best describes today's story!
+        <p className="text-lg font-orbitron text-white mb-2">
+          Which clue cracks today's code?
         </p>
-        <p className="text-sm text-gray-500">
-          Only one guess per day • Correct answers earn 10 points
+        <p className="text-base text-white/70">
+          1 guess per day · <span className="text-[var(--neon-yellow)] font-semibold">10 points for a correct answer</span>
         </p>
       </motion.div>
 
@@ -186,20 +213,18 @@ export default function GamePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.4 }}
-        className="max-w-4xl mx-auto mb-8"
+        className="max-w-2xl mx-auto mb-8 space-y-8"
       >
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {gameData.hints.map((hint, index) => (
-            <HintCard
-              key={index}
-              hint={hint}
-              index={index}
-              isSelected={selectedCard === index}
-              onClick={() => handleCardSelect(index)}
-              disabled={hasPlayedToday() || isSubmitting}
-            />
-          ))}
-        </div>
+        {gameData.hints.map((hint, index) => (
+          <HintCard
+            key={index}
+            hint={hint}
+            index={index}
+            isSelected={selectedCard === index}
+            onClick={() => handleCardSelect(index)}
+            disabled={hasPlayedToday() || isSubmitting}
+          />
+        ))}
       </motion.div>
 
       {/* Submit Button */}
@@ -214,7 +239,7 @@ export default function GamePage() {
             onClick={handleSubmitGuess}
             disabled={isSubmitting}
             size="lg"
-            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white px-8 py-3 text-lg font-semibold"
+            className="neon-btn px-12 py-4 text-xl font-orbitron shadow-[0_0_32px_var(--neon-cyan)]"
           >
             {isSubmitting ? (
               <div className="flex items-center space-x-2">
@@ -231,16 +256,26 @@ export default function GamePage() {
         )}
 
         {hasPlayedToday() && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 max-w-md mx-auto">
-            <div className="flex items-center space-x-2 text-yellow-800">
+          <div className="bg-[var(--neon-card)] border border-[var(--neon-cyan)] rounded-lg p-4 max-w-md mx-auto mt-4 shadow-xl">
+            <div className="flex items-center space-x-2 text-[var(--neon-yellow)]">
               <Clock className="w-5 h-5" />
               <span className="font-medium">You've already played today!</span>
             </div>
-            <p className="text-sm text-yellow-600 mt-1">
+            <p className="text-base text-[var(--neon-orange)] mt-1">
               Come back tomorrow for new hints.
             </p>
           </div>
         )}
+      </motion.div>
+
+      {/* Leaderboard */}
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8 }}
+        className="max-w-2xl mx-auto mt-16"
+      >
+        <Leaderboard />
       </motion.div>
 
       {/* Result Dialog */}

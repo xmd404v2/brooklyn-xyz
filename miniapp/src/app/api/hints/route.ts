@@ -8,12 +8,31 @@ export async function GET() {
     const today = getTodayString()
     
     // Get today's story from story_queue
-    const { data: storyData, error: storyError } = await supabase
+    // First try to get by date range
+    let { data: storyData, error: storyError } = await supabase
       .from('story_queue')
       .select('*')
       .gte('created_at', today)
       .lt('created_at', new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000).toISOString())
       .single()
+
+    // If no story found for today, get the most recent story
+    if (storyError && storyError.code === 'PGRST116') {
+      const { data: recentStory, error: recentError } = await supabase
+        .from('story_queue')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (recentError) {
+        console.error('Error fetching recent story:', recentError)
+        return NextResponse.json({ error: 'No stories available' }, { status: 404 })
+      }
+
+      storyData = recentStory
+      storyError = null
+    }
 
     if (storyError) {
       console.error('Error fetching story:', storyError)
@@ -73,12 +92,30 @@ export async function POST(request: NextRequest) {
     }
 
     // Get today's story to check the correct answer
-    const { data: storyData, error: storyError } = await supabase
+    // First try to get by date range
+    let { data: storyData, error: storyError } = await supabase
       .from('story_queue')
       .select('*')
       .gte('created_at', today)
       .lt('created_at', new Date(new Date(today).getTime() + 24 * 60 * 60 * 1000).toISOString())
       .single()
+
+    // If no story found for today, get the most recent story
+    if (storyError && storyError.code === 'PGRST116') {
+      const { data: recentStory, error: recentError } = await supabase
+        .from('story_queue')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (recentError) {
+        return NextResponse.json({ error: 'No stories available' }, { status: 404 })
+      }
+
+      storyData = recentStory
+      storyError = null
+    }
 
     if (storyError) {
       return NextResponse.json({ error: 'No story found for today' }, { status: 404 })
@@ -99,20 +136,29 @@ export async function POST(request: NextRequest) {
     const pointsToAdd = isCorrect ? 10 : 0
 
     // Upsert user record
-    const { data: userData, error: upsertError } = await supabase
+    const { error: upsertError } = await supabase
       .from('users')
       .upsert({
         farcaster_id: userId,
         points: (existingUser?.points || 0) + pointsToAdd,
         last_guess_date: today,
-        created_at: existingUser?.created_at || new Date().toISOString()
-      })
-      .select()
-      .single()
+      }, { onConflict: 'farcaster_id' })
 
     if (upsertError) {
       console.error('Error upserting user:', upsertError)
       return NextResponse.json({ error: 'Failed to update user data' }, { status: 500 })
+    }
+
+    // Fetch the updated user
+    const { data: userData, error: selectError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('farcaster_id', userId)
+      .single()
+
+    if (selectError) {
+      console.error('Error fetching user after upsert:', selectError)
+      return NextResponse.json({ error: 'Failed to fetch user data' }, { status: 500 })
     }
 
     return NextResponse.json({
