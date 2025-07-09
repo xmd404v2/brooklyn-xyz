@@ -122,10 +122,3 @@ Visit `http://localhost:3000` to manage NFTs.
 
 ISC License
 ```
-
-This simple README focuses on:
-- Quick setup instructions
-- Essential environment variables
-- Clear run commands
-- Basic architecture overview
-- Perfect for a hackathon submission
