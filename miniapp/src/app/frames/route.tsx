@@ -17,7 +17,7 @@ const handleRequest = frames(async (ctx) => {
         fontWeight: 'bold'
       }}>
         <img 
-          src="https://your-app.vercel.app/assets/brooklyn_sprite_excited.png" 
+          src="https://brooklyn-xyz.vercel.app/assets/brooklyn_sprite_excited.png" 
           alt="Brooklyn" 
           style={{ width: '200px', height: '200px' }}
         />
@@ -25,7 +25,7 @@ const handleRequest = frames(async (ctx) => {
       </div>
     ),
     buttons: [
-      <Button action="post_redirect" target="https://your-app.vercel.app">
+      <Button action="post_redirect" target="https://brooklyn-xyz.vercel.app">
         Play Cipher City
       </Button>,
     ],
