@@ -71,9 +71,10 @@ export default function GamePage() {
         const data = await response.json()
         setGameData(data)
         // Shuffle hints and store correct answer
-        if (data.hints && data.hints.length > 0) {
-          const correct = data.hints[0]
-          const shuffled = shuffleArray(data.hints)
+        if (data.hints && Array.isArray(data.hints) && data.hints.length > 0) {
+          const correct = data.hints[0] as string
+          const hintsArray = data.hints as string[]
+          const shuffled = shuffleArray(hintsArray)
           setCorrectHint(correct)
           setShuffledHints(shuffled)
         }

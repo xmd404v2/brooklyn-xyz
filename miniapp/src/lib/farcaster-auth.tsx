@@ -1,7 +1,7 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { createClient } from '@farcaster/auth-client'
+import { createAppClient, viemConnector } from '@farcaster/auth-client'
 
 interface FarcasterUser {
   fid: string
@@ -28,12 +28,9 @@ export function FarcasterAuthProvider({ children }: { children: React.ReactNode 
   useEffect(() => {
     const initClient = async () => {
       try {
-        const authClient = createClient({
-          appName: 'Brooklyn Daily Hints',
-          appIcon: `${process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000'}/assets/brooklyn_sprite_excited.png`,
-          appDescription: 'Test your intuition with Brooklyn\'s daily hints game!',
-          appUrl: process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
-          appDomain: process.env.NEXT_PUBLIC_BASE_URL?.replace('https://', '').replace('http://', '') || 'localhost:3000',
+        const authClient = createAppClient({
+          relay: "https://relay.farcaster.xyz",
+          ethereum: viemConnector(),
         })
 
         setClient(authClient)
