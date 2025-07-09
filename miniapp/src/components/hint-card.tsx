@@ -44,7 +44,7 @@ export function HintCard({ hint, index, isSelected, onClick, disabled }: HintCar
           src={sprite}
           alt="Brooklyn Sprite"
           fill
-          className="object-cover object-center"
+          className="object-cover object-top"
           sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
         />
         {/* Dark overlay for readability */}
